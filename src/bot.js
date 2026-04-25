@@ -266,7 +266,14 @@ class Bot {
 
     if (data === "cancel") {
       userState.pendingUrl = null;
-      await event.edit({ text: "❌ Cancelled." });
+      try {
+        await this.client.editMessage(event.chatId, {
+          message: Number(event.messageId),
+          text: "❌ Cancelled.",
+        });
+      } catch (e) {
+        logger.debug(`editMessage on cancel failed: ${e.message}`);
+      }
       await event.answer({ message: "Cancelled" });
       return;
     }
@@ -310,7 +317,7 @@ class Bot {
 
   async runJob(event, senderId, url, kind, value) {
     const chatId = event.chatId;
-    const messageId = event.messageId;
+    const messageId = Number(event.messageId);
     const cookiesPath = cookies.getCookiesPath(senderId);
     const jobDir = path.join(
       config.downloadDir,
@@ -419,7 +426,7 @@ class Bot {
       userState.waitingForCookies = true;
       try {
         await this.client.editMessage(event.chatId, {
-          message: event.messageId,
+          message: Number(event.messageId),
           text:
             "🔒 Cookies are required for this content.\n\n" +
             "Use the *Get cookies.txt LOCALLY* extension, export the cookies " +
@@ -435,7 +442,7 @@ class Bot {
 
     try {
       await this.client.editMessage(event.chatId, {
-        message: event.messageId,
+        message: Number(event.messageId),
         text: `❌ Failed:\n\`\`\`\n${truncate(err.message, 400)}\n\`\`\``,
         parseMode: "markdown",
       });

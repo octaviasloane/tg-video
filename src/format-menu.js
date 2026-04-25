@@ -9,21 +9,20 @@ function buildMenu(probeInfo) {
 
   if (probeInfo.hasVideo) {
     const max = probeInfo.maxHeight;
-    const heights = STANDARD_HEIGHTS.filter((h) => h <= max);
-    if (max && !heights.includes(max)) heights.push(max);
-    if (heights.length === 0) heights.push(max);
+    if (max && max > 0) {
+      const heights = STANDARD_HEIGHTS.filter((h) => h <= max);
+      if (!heights.includes(max)) heights.push(max);
 
-    const videoButtons = heights.map((h) => ({
-      label: `🎬 ${h}p`,
-      data: `v:${h}`,
-    }));
+      const videoButtons = heights.map((h) => ({
+        label: `🎬 ${h}p`,
+        data: `v:${h}`,
+      }));
 
-    while (videoButtons.length) {
-      rows.push(videoButtons.splice(0, 2));
-    }
-
-    if (heights[heights.length - 1] !== max) {
-      rows.push([{ label: `🎬 Best (${max}p)`, data: `v:${max}` }]);
+      while (videoButtons.length) {
+        rows.push(videoButtons.splice(0, 2));
+      }
+    } else {
+      rows.push([{ label: "🎬 Best video", data: "v:0" }]);
     }
   }
 

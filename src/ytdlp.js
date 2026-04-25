@@ -98,12 +98,19 @@ async function probe(url, cookiesPath) {
   }
 
   const formats = Array.isArray(data.formats) ? data.formats : [];
+
+  const isAudioOnly = (f) =>
+    f.vcodec === "none" && f.acodec && f.acodec !== "none";
+  const isVideoCandidate = (f) => !isAudioOnly(f);
+
   const heights = formats
-    .filter((f) => f.vcodec && f.vcodec !== "none" && f.height)
-    .map((f) => f.height);
+    .filter(isVideoCandidate)
+    .map((f) => f.height)
+    .filter((h) => typeof h === "number" && h > 0);
   const maxHeight = heights.length ? Math.max(...heights) : 0;
-  const hasVideo = maxHeight > 0;
-  const hasAudio = formats.some((f) => f.acodec && f.acodec !== "none");
+
+  const hasVideo = formats.some(isVideoCandidate) || formats.length > 0;
+  const hasAudio = true;
 
   return {
     title: data.title || "video",
@@ -117,6 +124,9 @@ async function probe(url, cookiesPath) {
 }
 
 function buildVideoFormat(maxHeight) {
+  if (!maxHeight || maxHeight <= 0) {
+    return "bv*+ba/b/best";
+  }
   return `bv*[height<=${maxHeight}]+ba/b[height<=${maxHeight}]/best`;
 }
 
