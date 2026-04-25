@@ -1,5 +1,6 @@
 const STANDARD_HEIGHTS = [144, 240, 360, 480, 720, 1080, 1440, 2160];
 const MP3_BITRATES = [128, 192, 320];
+const PAGE_SIZE = 8;
 
 function humanSize(bytes) {
   if (!bytes || bytes <= 0) return "";
@@ -16,6 +17,13 @@ function humanSize(bytes) {
 function estimateMp3Bytes(durationSec, bitrateKbps) {
   if (!durationSec || !bitrateKbps) return 0;
   return Math.round((bitrateKbps * 1000 * durationSec) / 8);
+}
+
+function shortCodec(codec) {
+  if (!codec) return "";
+  // Pull a useful short token out of long codec strings (e.g. "avc1.640028" -> "avc1")
+  const main = codec.split(".")[0];
+  return main || codec;
 }
 
 function buildMainMenu(probeInfo) {
@@ -66,75 +74,127 @@ function buildMainMenu(probeInfo) {
   return rows;
 }
 
-function buildAllVideoMenu(probeInfo) {
+function paginate(items, page) {
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const start = safePage * PAGE_SIZE;
+  const end = Math.min(items.length, start + PAGE_SIZE);
+  return {
+    page: safePage,
+    totalPages,
+    slice: items.slice(start, end),
+    startIndex: start,
+  };
+}
+
+function navRow(kind, page, totalPages) {
+  const row = [];
+  if (page > 0) {
+    row.push({ label: "⬅️ Prev", data: `pg:${kind}:${page - 1}` });
+  }
+  row.push({ label: "🔙 Back", data: "back" });
+  if (page < totalPages - 1) {
+    row.push({ label: "Next ▶️", data: `pg:${kind}:${page + 1}` });
+  }
+  return row;
+}
+
+function videoFormatLabel(v) {
+  const parts = [];
+  if (v.ext) parts.push(v.ext);
+  if (v.width && v.height) parts.push(`${v.width}x${v.height}`);
+  else if (v.height) parts.push(`${v.height}p`);
+  const sz = humanSize(v.sizeBytes);
+  if (sz) parts.push(sz);
+  const codec = shortCodec(v.vcodec);
+  if (codec) parts.push(codec);
+  if (v.fps && v.fps >= 30) parts.push(`${Math.round(v.fps)}fps`);
+  return `🎬 ${parts.join(" | ")}`;
+}
+
+function buildAllVideoMenu(probeInfo, page = 0) {
   const rows = [];
-  const videoHeights = Array.isArray(probeInfo.videoHeights)
-    ? probeInfo.videoHeights
+  const videoFormats = Array.isArray(probeInfo.videoFormats)
+    ? probeInfo.videoFormats
     : [];
 
-  if (videoHeights.length === 0) {
+  if (videoFormats.length === 0) {
     rows.push([{ label: "🎬 Best video", data: "v:0" }]);
-  } else {
-    const buttons = videoHeights.map((v) => {
-      const size = humanSize(v.sizeBytes);
-      return {
-        label: size ? `🎬 ${v.height}p  ${size}` : `🎬 ${v.height}p`,
-        data: `v:${v.height}`,
-      };
-    });
-    while (buttons.length) {
-      rows.push(buttons.splice(0, 2));
-    }
+    rows.push([
+      { label: "🔙 Back", data: "back" },
+      { label: "❌ Cancel", data: "cancel" },
+    ]);
+    return rows;
   }
 
-  rows.push([
-    { label: "⬅️ Back", data: "back" },
-    { label: "❌ Cancel", data: "cancel" },
-  ]);
+  const { page: cur, totalPages, slice, startIndex } = paginate(
+    videoFormats,
+    page,
+  );
+  slice.forEach((v, i) => {
+    rows.push([
+      { label: videoFormatLabel(v), data: `v:idx:${startIndex + i}` },
+    ]);
+  });
+
+  rows.push(navRow("v", cur, totalPages));
+  rows.push([{ label: "❌ Cancel", data: "cancel" }]);
   return rows;
 }
 
-function buildAllAudioMenu(probeInfo) {
-  const rows = [];
+function audioFormatLabel(a) {
+  const parts = [];
+  if (a.ext) parts.push(a.ext);
+  parts.push("audio");
+  const sz = humanSize(a.sizeBytes);
+  if (sz) parts.push(sz);
+  const codec = shortCodec(a.codec);
+  if (codec) parts.push(codec);
+  if (a.abr) parts.push(`${Math.round(a.abr)}k`);
+  return `🎧 ${parts.join(" | ")}`;
+}
+
+function buildAllAudioMenu(probeInfo, page = 0) {
   const duration = probeInfo.duration || 0;
   const audioFormats = Array.isArray(probeInfo.audioFormats)
     ? probeInfo.audioFormats
     : [];
 
-  // Native audio-only formats from yt-dlp (downloaded as-is, no transcoding)
+  // Build a single combined list: native audio formats first, then MP3 options.
+  const items = [];
   audioFormats.forEach((a, i) => {
-    const parts = [];
-    if (a.codec) parts.push(a.codec);
-    if (a.abr) parts.push(`${Math.round(a.abr)}k`);
-    const meta = parts.join(" ") || a.ext || "audio";
-    const sizeStr = humanSize(a.sizeBytes);
-    const label =
-      `🎧 ${a.ext || "audio"} (${meta})` + (sizeStr ? `  ${sizeStr}` : "");
-    rows.push([{ label, data: `a:idx:${i}` }]);
+    items.push({ label: audioFormatLabel(a), data: `a:idx:${i}` });
   });
-
-  // MP3 conversion options (always available; uses bestaudio source)
   for (const br of MP3_BITRATES) {
     const size = humanSize(estimateMp3Bytes(duration, br));
-    rows.push([
-      {
-        label: size ? `🎵 MP3 ${br}k  ${size}` : `🎵 MP3 ${br}k`,
-        data: `a:mp3:${br}`,
-      },
-    ]);
+    items.push({
+      label: size ? `🎵 MP3 ${br}k | ${size}` : `🎵 MP3 ${br}k`,
+      data: `a:mp3:${br}`,
+    });
   }
   const bestMp3Size = humanSize(estimateMp3Bytes(duration, 245));
-  rows.push([
-    {
-      label: bestMp3Size ? `🎵 MP3 Best  ${bestMp3Size}` : "🎵 MP3 Best",
-      data: "a:mp3",
-    },
-  ]);
+  items.push({
+    label: bestMp3Size ? `🎵 MP3 Best | ${bestMp3Size}` : "🎵 MP3 Best",
+    data: "a:mp3",
+  });
 
-  rows.push([
-    { label: "⬅️ Back", data: "back" },
-    { label: "❌ Cancel", data: "cancel" },
-  ]);
+  const rows = [];
+  if (items.length === 0) {
+    rows.push([{ label: "🎵 Audio (MP3)", data: "a:mp3" }]);
+    rows.push([
+      { label: "🔙 Back", data: "back" },
+      { label: "❌ Cancel", data: "cancel" },
+    ]);
+    return rows;
+  }
+
+  const { page: cur, totalPages, slice } = paginate(items, page);
+  for (const it of slice) {
+    rows.push([{ label: it.label, data: it.data }]);
+  }
+
+  rows.push(navRow("a", cur, totalPages));
+  rows.push([{ label: "❌ Cancel", data: "cancel" }]);
   return rows;
 }
 
@@ -143,4 +203,5 @@ module.exports = {
   buildMainMenu,
   buildAllVideoMenu,
   buildAllAudioMenu,
+  PAGE_SIZE,
 };

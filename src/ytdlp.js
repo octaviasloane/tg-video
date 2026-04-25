@@ -119,15 +119,35 @@ async function probe(url, cookiesPath) {
     return 0;
   };
 
-  // Video heights
+  // All video formats (each as its own entry)
+  const videoFormats = formats
+    .filter(isVideoCandidate)
+    .map((f) => ({
+      formatId: f.format_id,
+      ext: f.ext || "",
+      vcodec: f.vcodec && f.vcodec !== "none" ? f.vcodec : "",
+      acodec: f.acodec && f.acodec !== "none" ? f.acodec : "",
+      height: typeof f.height === "number" ? f.height : 0,
+      width: typeof f.width === "number" ? f.width : 0,
+      fps: typeof f.fps === "number" ? f.fps : 0,
+      sizeBytes: estimateBytes(f),
+    }))
+    .filter((v) => v.formatId)
+    .sort(
+      (a, b) =>
+        a.height - b.height ||
+        a.sizeBytes - b.sizeBytes ||
+        a.formatId.localeCompare(b.formatId),
+    );
+
+  // Collapsed per-height entries for the main menu (best size wins)
   const byHeight = new Map();
-  for (const f of formats.filter(isVideoCandidate)) {
+  for (const f of videoFormats) {
     const h = f.height;
     if (typeof h !== "number" || h <= 0) continue;
-    const size = estimateBytes(f);
     const prev = byHeight.get(h);
-    if (!prev || size > prev.sizeBytes) {
-      byHeight.set(h, { height: h, sizeBytes: size });
+    if (!prev || f.sizeBytes > prev.sizeBytes) {
+      byHeight.set(h, { height: h, sizeBytes: f.sizeBytes });
     }
   }
   const videoHeights = [...byHeight.values()].sort(
@@ -185,6 +205,7 @@ async function probe(url, cookiesPath) {
     maxHeight,
     availableHeights,
     videoHeights,
+    videoFormats,
     audioFormats,
     bestAudio,
     hasVideo,
@@ -206,11 +227,15 @@ async function downloadVideo({
   maxHeight,
   cookiesPath,
   onProgress,
+  formatId = "",
 }) {
   fs.mkdirSync(jobDir, { recursive: true });
+  const formatSelector = formatId
+    ? `${formatId}+ba/${formatId}/best`
+    : buildVideoFormat(maxHeight);
   const args = [
     "-f",
-    buildVideoFormat(maxHeight),
+    formatSelector,
     "--merge-output-format",
     "mp4",
     "--restrict-filenames",

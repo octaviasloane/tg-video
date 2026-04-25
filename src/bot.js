@@ -52,6 +52,29 @@ class Bot {
       new CallbackQuery({}),
     );
     logger.info("Event handlers registered");
+    this.registerBotCommands().catch((err) => {
+      logger.warn(`Failed to register bot commands: ${err.message}`);
+    });
+  }
+
+  async registerBotCommands() {
+    const commands = [
+      { command: "start", description: "Start the bot" },
+      { command: "help", description: "Show usage instructions" },
+      { command: "cancel", description: "Cancel the current operation" },
+      { command: "clearcookies", description: "Clear saved cookies" },
+    ].map(
+      (c) =>
+        new Api.BotCommand({ command: c.command, description: c.description }),
+    );
+    await this.client.invoke(
+      new Api.bots.SetBotCommands({
+        scope: new Api.BotCommandScopeDefault(),
+        langCode: "",
+        commands,
+      }),
+    );
+    logger.info("Bot commands registered");
   }
 
   async safeHandle(fn) {
@@ -302,12 +325,37 @@ class Bot {
       return;
     }
 
-    if (data === "all_v" || data === "all_a" || data === "back") {
+    if (
+      data === "all_v" ||
+      data === "all_a" ||
+      data === "back" ||
+      data.startsWith("pg:")
+    ) {
       const info = userState.pendingFormats;
       let rows;
-      if (data === "all_v") rows = buildAllVideoMenu(info);
-      else if (data === "all_a") rows = buildAllAudioMenu(info);
-      else rows = buildMainMenu(info);
+      if (data === "all_v") {
+        userState.menuView = "v";
+        userState.menuPage = 0;
+        rows = buildAllVideoMenu(info, 0);
+      } else if (data === "all_a") {
+        userState.menuView = "a";
+        userState.menuPage = 0;
+        rows = buildAllAudioMenu(info, 0);
+      } else if (data === "back") {
+        userState.menuView = null;
+        userState.menuPage = 0;
+        rows = buildMainMenu(info);
+      } else {
+        // pg:<v|a>:<n>
+        const [, view, pageStr] = data.split(":");
+        const page = Number(pageStr) || 0;
+        userState.menuView = view;
+        userState.menuPage = page;
+        rows =
+          view === "v"
+            ? buildAllVideoMenu(info, page)
+            : buildAllAudioMenu(info, page);
+      }
       const buttons = buildButtons(rows);
       try {
         await this.client.editMessage(event.chatId, {
@@ -364,6 +412,7 @@ class Bot {
     let audioBitrate = 0;
     let audioFormatId = "";
     let videoHeight = 0;
+    let videoFormatId = "";
     let labelLine;
     if (kind === "a") {
       const sub = parts[0] || "mp3";
@@ -400,8 +449,30 @@ class Bot {
           : "🎵 MP3 (Best)";
       }
     } else {
-      videoHeight = Number(parts[0]) || 0;
-      labelLine = videoHeight > 0 ? `🎬 ${videoHeight}p` : "🎬 Best video";
+      // kind === "v"
+      if (parts[0] === "idx") {
+        const idx = Number(parts[1]);
+        const vf =
+          probeInfo &&
+          Array.isArray(probeInfo.videoFormats) &&
+          probeInfo.videoFormats[idx];
+        if (vf && vf.formatId) {
+          videoFormatId = vf.formatId;
+          const dim =
+            vf.width && vf.height
+              ? `${vf.width}x${vf.height}`
+              : vf.height
+                ? `${vf.height}p`
+                : "video";
+          labelLine = `🎬 ${vf.ext || ""} ${dim}`.trim();
+        } else {
+          videoHeight = 0;
+          labelLine = "🎬 Best video";
+        }
+      } else {
+        videoHeight = Number(parts[0]) || 0;
+        labelLine = videoHeight > 0 ? `🎬 ${videoHeight}p` : "🎬 Best video";
+      }
     }
 
     let lastEdit = 0;
@@ -439,6 +510,7 @@ class Bot {
           url,
           jobDir,
           maxHeight: videoHeight,
+          formatId: videoFormatId,
           cookiesPath,
           onProgress: (p) =>
             editStatus(`${labelLine}\n⬇️ Downloading... ${p.toFixed(1)}%`),
