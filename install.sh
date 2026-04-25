@@ -32,21 +32,15 @@ require_root() {
 }
 
 banner() {
-  cat <<EOF
-${BOLD}${CYAN}
-  _              _     _
- | |_ __ _      | |   (_)__| | ___  ___
- | __/ _` |_____| |   | |/ _\` |/ _ \/ _ \\
- | || (_| |_____| |   | | (_| |  __/ (_) |
-  \__\__, |     |_|___/_|\__,_|\___|\___/
-     |___/
-${NC}
-${BOLD} Simple Telegram bot for downloading videos via yt-dlp${NC}
-${BOLD} Repo:${NC} ${REPO_URL}
-${BOLD} Install dir:${NC} ${INSTALL_DIR}
-${BOLD} Downloads:${NC} ${DOWNLOAD_DIR}
-
-EOF
+  echo
+  echo -e "${BOLD}${CYAN}========================================${NC}"
+  echo -e "${BOLD}${CYAN}            tg-video installer          ${NC}"
+  echo -e "${BOLD}${CYAN}========================================${NC}"
+  echo -e "${BOLD} Simple Telegram bot for downloading videos via yt-dlp${NC}"
+  echo -e "${BOLD} Repo:${NC}        ${REPO_URL}"
+  echo -e "${BOLD} Install dir:${NC} ${INSTALL_DIR}"
+  echo -e "${BOLD} Downloads:${NC}   ${DOWNLOAD_DIR}"
+  echo
 }
 
 cleanup_existing() {
