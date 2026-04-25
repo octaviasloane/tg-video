@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # tg-video installer
-# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/octaviasloane/tg-video/main/install.sh)
+# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/ali934h/tg-video/main/install.sh)
 
 set -euo pipefail
 
-REPO_URL="https://github.com/octaviasloane/tg-video.git"
+REPO_URL="https://github.com/ali934h/tg-video.git"
 PROJECT="tg-video"
 INSTALL_DIR="/root/${PROJECT}"
 DOWNLOAD_DIR="/root/${PROJECT}-downloads"

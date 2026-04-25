@@ -14,7 +14,7 @@ Simple Telegram bot that downloads videos and audio from YouTube and other yt-dl
 One-line install (run as root):
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/octaviasloane/tg-video/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/ali934h/tg-video/main/install.sh)
 ```
 
 The installer will:
