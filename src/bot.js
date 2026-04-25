@@ -76,6 +76,11 @@ class Bot {
     const text = (msg.message || "").trim();
     const userState = state.get(senderId);
 
+    if (msg.document) {
+      await this.handleDocument(msg, senderId);
+      return;
+    }
+
     if (text.startsWith("/start") || text.startsWith("/help")) {
       await this.sendHelp(msg);
       return;
@@ -89,7 +94,23 @@ class Bot {
 
     if (text.startsWith("/clearcookies")) {
       cookies.deleteCookies(senderId);
+      userState.waitingForCookies = false;
       await msg.reply({ message: "🗑 Cookies cleared." });
+      return;
+    }
+
+    const urlMatch = text.match(URL_REGEX);
+
+    if (urlMatch) {
+      userState.waitingForCookies = false;
+      const url = urlMatch[1];
+      if (userState.activeJob) {
+        await msg.reply({
+          message: "⏳ Another download is in progress. Please wait.",
+        });
+        return;
+      }
+      await this.handleUrl(msg, senderId, url);
       return;
     }
 
@@ -104,33 +125,50 @@ class Bot {
       } else {
         await msg.reply({
           message:
-            "❌ This does not look like a valid Netscape cookies.txt file.\n" +
-            "Use the *Get cookies.txt LOCALLY* extension and paste the full file contents as text.",
+            "❌ This does not look like a valid cookies.txt file.\n" +
+            "Use the *Get cookies.txt LOCALLY* extension, click *Export*, " +
+            "open the downloaded file in a text editor, copy ALL its contents, " +
+            "and paste here as a single message.\n\n" +
+            "Or send /cancel to abort.",
           parseMode: "markdown",
         });
       }
       return;
     }
 
-    const urlMatch = text.match(URL_REGEX);
-    if (!urlMatch) {
-      await msg.reply({
-        message:
-          "Send me a video URL (YouTube, etc.) and I will offer download options.\n" +
-          "Type /help for more info.",
-      });
-      return;
-    }
+    await msg.reply({
+      message:
+        "Send me a video URL (YouTube, etc.) and I will offer download options.\n" +
+        "Type /help for more info.",
+    });
+  }
 
-    const url = urlMatch[1];
-    if (userState.activeJob) {
+  async handleDocument(msg, senderId) {
+    try {
+      const buf = await this.client.downloadMedia(msg, {});
+      const text = buf ? buf.toString("utf8") : "";
+      if (cookies.isValidCookiesText(text)) {
+        cookies.saveCookies(senderId, text);
+        const userState = state.get(senderId);
+        userState.waitingForCookies = false;
+        await msg.reply({
+          message:
+            "✅ Cookies saved from file. Now send the link again to retry.",
+        });
+      } else {
+        await msg.reply({
+          message:
+            "❌ The uploaded file does not look like a valid cookies.txt file.\n" +
+            "Please use the *Get cookies.txt LOCALLY* extension to export it.",
+          parseMode: "markdown",
+        });
+      }
+    } catch (err) {
+      logger.error("Failed to read uploaded document:", err.message);
       await msg.reply({
-        message: "⏳ Another download is in progress. Please wait.",
+        message: "❌ Could not read the uploaded file.",
       });
-      return;
     }
-
-    await this.handleUrl(msg, senderId, url);
   }
 
   async sendHelp(msg) {
@@ -142,8 +180,8 @@ class Bot {
       "/cancel — reset state\n" +
       "/clearcookies — delete saved cookies\n\n" +
       "*Cookies:* If a site requires login, install the *Get cookies.txt LOCALLY* " +
-      "browser extension, export your cookies, and paste the file contents to me " +
-      "when prompted.";
+      "browser extension, export your cookies, and either paste the file contents " +
+      "as a text message OR send the cookies.txt file directly to me.";
     await msg.reply({ message: help, parseMode: "markdown" });
   }
 
@@ -168,7 +206,7 @@ class Bot {
             "1. Install the *Get cookies.txt LOCALLY* extension in your browser.\n" +
             "2. Open the site and log in.\n" +
             "3. Export cookies for that domain.\n" +
-            "4. Paste the cookies.txt content as a text message here.\n\n" +
+            "4. Either paste the cookies.txt content as text OR send the cookies.txt file here.\n\n" +
             "Then send the link again to retry.",
           parseMode: "markdown",
         });
@@ -382,8 +420,8 @@ class Bot {
           text:
             "🔒 Cookies are required for this content.\n\n" +
             "Use the *Get cookies.txt LOCALLY* extension, export the cookies " +
-            "for that site, and paste the file contents to me as a text message. " +
-            "Then send the link again.",
+            "for that site, and either paste the file contents as text OR send " +
+            "the cookies.txt file. Then send the link again.",
           parseMode: "markdown",
           buttons: [],
         });
