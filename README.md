@@ -41,22 +41,26 @@ bash /root/tg-video/uninstall.sh
 
 1. Open a private chat with your bot in Telegram.
 2. Send any video URL (YouTube, etc.).
-3. Pick a quality from the inline keyboard.
+3. Pick a quality from the inline keyboard, or open one of the expanded menus:
+   - **🎵 Audio (MP3)** — best-quality MP3 in one tap.
+   - **🎬 144p / 240p / … / 1080p** — common heights actually available for that source.
+   - **📂 All Video** — every individual format yt-dlp returned (mp4 / webm / av1 variants for each height) with container, resolution, codec, and an estimated file size. Long lists paginate with **Prev / Next**.
+   - **📂 All Audio** — every native audio-only stream the source exposes (downloaded as-is) followed by MP3 transcoding options at 128 / 192 / 320 / Best, each with an estimated size.
 4. Wait for the bot to download, upload, and clean up.
 
-If the source requires login or is age/region restricted, the bot will ask for cookies:
+If the source requires login or is age/region restricted, the bot will ask for cookies. Either method works:
 
-1. Install the **Get cookies.txt LOCALLY** browser extension.
-2. Log in to the site, open the page, and export cookies.
-3. Paste the full file contents (text) to the bot.
-4. Resend the URL.
+- **Paste as text** — install the **Get cookies.txt LOCALLY** browser extension, export cookies for the site, and paste the full file contents into the chat.
+- **Send as a file** — same export, but send the `cookies.txt` file directly to the bot as an attachment.
 
-Bot commands:
+Then resend the original URL.
+
+Bot commands (also exposed via the slash-command menu in your Telegram client):
 
 | Command | Action |
 | --- | --- |
-| `/start`, `/help` | Show help |
-| `/cancel` | Reset current state |
+| `/start`, `/help` | Show usage instructions |
+| `/cancel` | Cancel the current operation / reset state |
 | `/clearcookies` | Delete saved cookies for your account |
 
 ## Troubleshooting
